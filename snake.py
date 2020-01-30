@@ -5,7 +5,7 @@ from blocks import *
 import numpy as np
 
 
-NUM_CHANNELS = 27
+NUM_CHANNELS = 17
 NUM_ACTIONS = 3
 
 """
@@ -30,6 +30,7 @@ DX, DY = [-1, 0, 1, 0], [0, 1, 0, -1]
 BLOCK_PIXELS = 30
 SCREEN_SIZE = (BOARD_WIDTH*BLOCK_PIXELS, BOARD_HEIGHT*BLOCK_PIXELS)
 
+
 class SnakeAction:
     MOVE_FORWARD = 0
     TURN_LEFT = 1
@@ -38,25 +39,25 @@ class SnakeAction:
 
 class SnakeState:
     def __init__(self):
-        self.board = np.full((BOARD_HEIGHT, BOARD_WIDTH), EmptyBlock.code)
+        self.board = np.full((BOARD_HEIGHT, BOARD_WIDTH), EmptyBlock.get_code())
         self.snake = deque(INITIAL_SNAKE)
         self.tx, self.ty = INITIAL_TAIL
         self.direction = INITIAL_SNAKE[-1]
 
-        self.board[self.tx, self.ty] = SnakeBlock(INITIAL_SNAKE[0], 4).code
+        self.board[self.tx, self.ty] = SnakeTailBlock.get_code(INITIAL_SNAKE[0])
         x, y = INITIAL_TAIL
         for i in range(len(INITIAL_SNAKE)-1):
             x += DX[INITIAL_SNAKE[i]]
             y += DY[INITIAL_SNAKE[i]]
-            self.board[x, y] = SnakeBlock(INITIAL_SNAKE[i+1], INITIAL_SNAKE[i]).code
+            self.board[x, y] = SnakeBodyBlock.get_code(INITIAL_SNAKE[i+1], INITIAL_SNAKE[i])
         self.hx, self.hy = x + DX[self.direction], y + DY[self.direction]
-        self.board[self.hx, self.hy] = SnakeBlock(4, self.direction).code
+        self.board[self.hx, self.hy] = SnakeHeadBlock.get_code(self.direction)
 
         for x, y in INITIAL_OBSTACLE:
-            self.board[x, y] = ObstacleBlock.code
+            self.board[x, y] = ObstacleBlock.get_code()
 
         for x, y in INITIAL_FEED:
-            self.board[x, y] = FeedBlock.code
+            self.board[x, y] = FeedBlock.get_code()
         for _ in range(NUM_FEED-len(INITIAL_FEED)):
             self._generate_feed()
 
@@ -64,12 +65,12 @@ class SnakeState:
         empty_blocks = []
         for i in range(BOARD_HEIGHT):
             for j in range(BOARD_WIDTH):
-                if self.board[i][j] == EmptyBlock.code:
+                if self.board[i][j] == EmptyBlock.get_code():
                     empty_blocks.append((i, j))
 
         if len(empty_blocks) > 0:
             x, y = random.sample(empty_blocks, 1)[0]
-            self.board[x, y] = FeedBlock.code
+            self.board[x, y] = FeedBlock.get_code()
 
     def get_length(self):
         return len(self.snake) + 1
@@ -78,31 +79,29 @@ class SnakeState:
         hx = self.hx + DX[self.direction]
         hy = self.hy + DY[self.direction]
         if hx < 0 or hx >= BOARD_HEIGHT or hy < 0 or hy >= BOARD_WIDTH \
-                or self.board[hx][hy] == ObstacleBlock.code \
-                or SnakeBlock.is_snake(self.board[hx][hy]) and (hx, hy) != (self.tx, self.ty):
+                or ObstacleBlock.contains(self.board[hx][hy]) \
+                or SnakeBodyBlock.contains(self.board[hx][hy]):
             return -1, True
 
-        is_feed = self.board[hx][hy] == FeedBlock.code
+        is_feed = FeedBlock.contains(self.board[hx][hy])
 
         if not is_feed:
-            self.board[self.tx, self.ty] = EmptyBlock.code
+            self.board[self.tx, self.ty] = EmptyBlock.get_code()
             td = self.snake.popleft()
             self.tx += DX[td]
             self.ty += DY[td]
-            self.board[self.tx, self.ty] = SnakeBlock(self.snake[0], 4).code
+            self.board[self.tx, self.ty] = SnakeTailBlock.get_code(self.snake[0])
 
         self.snake.append(self.direction)
-        self.board[self.hx, self.hy] = SnakeBlock(self.snake[-1], self.snake[-2]).code
-        self.board[hx, hy] = SnakeBlock(4, self.snake[-1]).code
+        self.board[self.hx, self.hy] = SnakeBodyBlock.get_code(self.snake[-1], self.snake[-2])
+        self.board[hx, hy] = SnakeHeadBlock.get_code(self.snake[-1])
         self.hx, self.hy = hx, hy
 
         if is_feed:
             self._generate_feed()
-            reward = self.get_length()
-        else:
-            reward = 0
+            return self.get_length(), False
 
-        return reward, False
+        return 0, False
 
     def turn_left(self):
         self.direction = (self.direction + 3) % 4
@@ -132,10 +131,12 @@ class Snake:
 
     def reset(self):
         self.state = SnakeState()
+        self.tot_reward = 0
         return self.state.embedded()
 
     def step(self, action):
         reward, done = getattr(self.state, Snake.ACTIONS[action])()
+        self.tot_reward += reward
         return self.state.embedded(), reward, done
 
     def quit(self):
@@ -148,14 +149,14 @@ class Snake:
 
         for i in range(BOARD_HEIGHT):
             for j in range(BOARD_WIDTH):
-                block = code_to_block(self.state.board[i][j])
-                if block is EmptyBlock:
+                cp = get_color_points(self.state.board[i][j])
+                if cp is None:
                     continue
                 pygame.draw.polygon(
                     self.screen,
-                    block.color,
-                    (block.points + [j, i])*BLOCK_PIXELS
+                    cp[0],
+                    (cp[1] + [j, i])*BLOCK_PIXELS
                 )
-        pygame.display.flip()
 
+        pygame.display.flip()
         self.clock.tick(fps)

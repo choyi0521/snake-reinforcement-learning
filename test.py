@@ -1,3 +1,5 @@
-import tensorflow as tf
+import numpy as np
 
-print(tf.__version__)
+for i in range(6):
+    x = int(3.7 - np.sqrt(49 - 8 * i)/2)
+    print(x)
