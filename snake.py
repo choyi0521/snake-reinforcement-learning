@@ -1,10 +1,11 @@
-import numpy as np
 import random
 from collections import deque
-import cv2
+import pygame
+from blocks import *
+import numpy as np
 
 
-NUM_CHANNELS = 4
+NUM_CHANNELS = 27
 NUM_ACTIONS = 3
 
 """
@@ -20,22 +21,14 @@ BOARD_HEIGHT = 9
 BOARD_WIDTH = 9
 
 INITIAL_OBSTACLE = []
-INITIAL_FEED = [(4, 7)]
-INITIAL_SNAKE = [(4, 1), (4, 2), (4, 3), (4, 4)]
-INITIAL_DIRECTION = (0, 1)
+INITIAL_FEED = []
+INITIAL_TAIL = (4, 1)
+INITIAL_SNAKE = [1, 1, 1]
+NUM_FEED = 1
+DX, DY = [-1, 0, 1, 0], [0, 1, 0, -1]
 
-
-
-BLOCK_PIXELS = 20
-
-class Block:
-    EMPTY = 0
-    OBSTACLE = 1
-    FEED = 2
-    SNAKE = lambda front, back: 3 + 5 * front + back
-    def decompose_snake(self, x):
-        return (x-3)/5, (x-3)%5
-
+BLOCK_PIXELS = 30
+SCREEN_SIZE = (BOARD_WIDTH*BLOCK_PIXELS, BOARD_HEIGHT*BLOCK_PIXELS)
 
 class SnakeAction:
     MOVE_FORWARD = 0
@@ -45,71 +38,82 @@ class SnakeAction:
 
 class SnakeState:
     def __init__(self):
-        self.board = np.full((BOARD_HEIGHT, BOARD_WIDTH), Block.EMPTY)
+        self.board = np.full((BOARD_HEIGHT, BOARD_WIDTH), EmptyBlock.code)
         self.snake = deque(INITIAL_SNAKE)
-        self.dx, self.dy = INITIAL_DIRECTION
+        self.tx, self.ty = INITIAL_TAIL
+        self.direction = INITIAL_SNAKE[-1]
+
+        self.board[self.tx, self.ty] = SnakeBlock(INITIAL_SNAKE[0], 4).code
+        x, y = INITIAL_TAIL
+        for i in range(len(INITIAL_SNAKE)-1):
+            x += DX[INITIAL_SNAKE[i]]
+            y += DY[INITIAL_SNAKE[i]]
+            self.board[x, y] = SnakeBlock(INITIAL_SNAKE[i+1], INITIAL_SNAKE[i]).code
+        self.hx, self.hy = x + DX[self.direction], y + DY[self.direction]
+        self.board[self.hx, self.hy] = SnakeBlock(4, self.direction).code
 
         for x, y in INITIAL_OBSTACLE:
-            self.board[x, y] = Block.OBSTACLE
+            self.board[x, y] = ObstacleBlock.code
 
         for x, y in INITIAL_FEED:
-            self.board[x, y] = Block.FEED
-
-        for x, y in INITIAL_SNAKE:
-            self.board[x, y] = Block.SNAKE
+            self.board[x, y] = FeedBlock.code
+        for _ in range(NUM_FEED-len(INITIAL_FEED)):
+            self._generate_feed()
 
     def _generate_feed(self):
         empty_blocks = []
         for i in range(BOARD_HEIGHT):
             for j in range(BOARD_WIDTH):
-                if self.board[i][j] == Block.EMPTY:
+                if self.board[i][j] == EmptyBlock.code:
                     empty_blocks.append((i, j))
 
         if len(empty_blocks) > 0:
             x, y = random.sample(empty_blocks, 1)[0]
-            self.board[x, y] = Block.FEED
+            self.board[x, y] = FeedBlock.code
+
+    def get_length(self):
+        return len(self.snake) + 1
 
     def move_forward(self):
-        hx, hy = self.snake[-1][0]+self.dx, self.snake[-1][1]+self.dy
-        tx, ty = self.snake.popleft()
-        self.board[tx, ty] = Block.EMPTY
-
+        hx = self.hx + DX[self.direction]
+        hy = self.hy + DY[self.direction]
         if hx < 0 or hx >= BOARD_HEIGHT or hy < 0 or hy >= BOARD_WIDTH \
-            or self.board[hx][hy] == Block.OBSTACLE \
-            or self.board[hx][hy] == Block.SNAKE:
-            self.snake.appendleft((tx, ty))
-            self.board[tx, ty] = Block.SNAKE
-            return 0, True
+                or self.board[hx][hy] == ObstacleBlock.code \
+                or SnakeBlock.is_snake(self.board[hx][hy]) and (hx, hy) != (self.tx, self.ty):
+            return -1, True
 
-        block = self.board[hx][hy]
-        self.snake.append((hx, hy))
-        self.board[hx, hy] = Block.SNAKE
+        is_feed = self.board[hx][hy] == FeedBlock.code
 
-        if block == Block.EMPTY:
-            reward = 0
-        else:
-            self.snake.appendleft((tx, ty))
-            self.board[tx, ty] = Block.SNAKE
+        if not is_feed:
+            self.board[self.tx, self.ty] = EmptyBlock.code
+            td = self.snake.popleft()
+            self.tx += DX[td]
+            self.ty += DY[td]
+            self.board[self.tx, self.ty] = SnakeBlock(self.snake[0], 4).code
+
+        self.snake.append(self.direction)
+        self.board[self.hx, self.hy] = SnakeBlock(self.snake[-1], self.snake[-2]).code
+        self.board[hx, hy] = SnakeBlock(4, self.snake[-1]).code
+        self.hx, self.hy = hx, hy
+
+        if is_feed:
             self._generate_feed()
-            reward = 1
+            reward = self.get_length()
+        else:
+            reward = 0
 
         return reward, False
 
     def turn_left(self):
-        self.dx, self.dy = -self.dy, self.dx
+        self.direction = (self.direction + 3) % 4
         return self.move_forward()
 
     def turn_right(self):
-        self.dx, self.dy = self.dy, -self.dx
+        self.direction = (self.direction + 1) % 4
         return self.move_forward()
 
     def embedded(self):
-        x1 = np.eye(NUM_CHANNELS)[self.board]
-        x2 = np.zeros(BOARD_HEIGHT+BOARD_WIDTH+2)
-        x2[self.snake[-1][0]] = 1
-        x2[BOARD_HEIGHT+self.snake[-1][1]] = 1
-        x2[BOARD_HEIGHT+BOARD_WIDTH:] = [self.dx, self.dy]
-        return x1, x2
+        return np.eye(NUM_CHANNELS)[self.board]
 
 
 class Snake:
@@ -118,37 +122,40 @@ class Snake:
         SnakeAction.TURN_LEFT: 'turn_left',
         SnakeAction.TURN_RIGHT: 'turn_right'
     }
-    BLOCK_BGR = {
-        Block.EMPTY: (255, 255, 255),
-        Block.OBSTACLE: (0, 0, 0),
-        Block.SNAKE: (0, 255, 0),
-        Block.FEED: (0, 0, 255)
-    }
 
     def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode(SCREEN_SIZE)
+        self.clock = pygame.time.Clock()
+
         self.reset()
 
     def reset(self):
         self.state = SnakeState()
-        self.score = 0
+        return self.state.embedded()
 
     def step(self, action):
         reward, done = getattr(self.state, Snake.ACTIONS[action])()
-        embedded_state = self.state.embedded()
-        self.score += reward
-        return embedded_state, reward, done
+        return self.state.embedded(), reward, done
 
-    def render(self, delay):
-        # make complete board to be displayed
-        board = self.state.board.copy()
+    def quit(self):
+        pygame.quit()
 
-        # make scaled image
-        img = np.array([[Snake.BLOCK_BGR[block] for block in row] for row in board]).astype(np.uint8)
-        img = np.kron(img, np.ones((BLOCK_PIXELS, BLOCK_PIXELS, 1)))
+    def render(self, fps):
+        pygame.display.set_caption('length: {}'.format(self.state.get_length()))
+        pygame.event.pump()
+        self.screen.fill((255, 255, 255))
 
-        # display score
-        cv2.putText(img, str(self.score), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 1)
+        for i in range(BOARD_HEIGHT):
+            for j in range(BOARD_WIDTH):
+                block = code_to_block(self.state.board[i][j])
+                if block is EmptyBlock:
+                    continue
+                pygame.draw.polygon(
+                    self.screen,
+                    block.color,
+                    (block.points + [j, i])*BLOCK_PIXELS
+                )
+        pygame.display.flip()
 
-        # display the image
-        cv2.imshow('Snake AI', img)
-        cv2.waitKey(delay)
+        self.clock.tick(fps)
