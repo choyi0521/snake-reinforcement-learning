@@ -18,9 +18,16 @@ class Summary:
         return None if len(lst) == 0 else max(self.storage[metrics])
 
     def write(self, episode, epsilon):
-        s = 'episode: {}, epsilon: {}, maximum length: {}, average length: {}, average reward: {}, average loss: {}'.format(
+        s = 'episode: {}, ' \
+            'epsilon: {}, ' \
+            'average steps: {}, ' \
+            'maximum length: {}, ' \
+            'average length: {}, ' \
+            'average reward: {}, ' \
+            'average loss: {}'.format(
             episode,
             epsilon,
+            self.get_average('steps'),
             self.get_maximum('length'),
             self.get_average('length'),
             self.get_average('reward'),

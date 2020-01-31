@@ -11,12 +11,12 @@ from summary import Summary
 
 class DQNTrainer(object):
     def __init__(self,
-                 n_episodes=40000,
+                 n_episodes=50000,
                  initial_epsilon=1.,
                  min_epsilon=0.01,
-                 exploration_ratio=0.8,
+                 exploration_ratio=0.5,
                  max_steps=2000,
-                 render_freq=100,
+                 render_freq=200,
                  enable_render=True,
                  render_fps=10,
                  save_dir='checkpoints',
@@ -87,6 +87,7 @@ class DQNTrainer(object):
 
             self.summary.add('length', self.env.state.get_length())
             self.summary.add('reward', self.env.tot_reward)
+            self.summary.add('steps', steps)
 
             # decay epsilon
             self.epsilon = max(self.epsilon-self.epsilon_decay, self.min_epsilon)
@@ -155,6 +156,6 @@ class DQNTrainer(object):
 
 if __name__ == '__main__':
     trainer = DQNTrainer()
-    #trainer.load('22000')
-    trainer.train()
-    #trainer.preview(disable_exploration=True)
+    trainer.load('26000')
+    #trainer.train()
+    trainer.preview(disable_exploration=True)
