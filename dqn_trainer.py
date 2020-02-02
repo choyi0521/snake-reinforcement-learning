@@ -163,6 +163,6 @@ class DQNTrainer(object):
 if __name__ == '__main__':
     trainer = DQNTrainer('levels/9x9_empty.yml')
     #trainer = DQNTrainer('levels/9x13_double_feed.yml')
-    #trainer.load('20500')
+    #trainer.load('best')
     trainer.train()
     #trainer.preview(disable_exploration=True)
