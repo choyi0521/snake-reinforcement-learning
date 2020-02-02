@@ -5,8 +5,8 @@ class Summary:
         self.storage = {}
 
     def add(self, metrics, value):
+        self.storage.setdefault(metrics, [])
         if value is not None:
-            self.storage.setdefault(metrics, [])
             self.storage[metrics].append(value)
 
     def get_average(self, metrics):

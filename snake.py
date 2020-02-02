@@ -8,93 +8,55 @@ import numpy as np
 NUM_CHANNELS = 17
 NUM_ACTIONS = 3
 
-"""
-BOARD_HEIGHT = 15
-BOARD_WIDTH = 17
-
-INITIAL_OBSTACLE = []
-INITIAL_FEED = [(7, 12)]
-INITIAL_SNAKE = [(7, 1), (7, 2), (7, 3), (7, 4)]
-INITIAL_DIRECTION = (0, 1)
-"""
-BOARD_HEIGHT = 9
-BOARD_WIDTH = 9
-
-INITIAL_OBSTACLE = []
-INITIAL_FEED = []
-INITIAL_TAIL = (4, 1)
-INITIAL_SNAKE = [1, 1, 1]
-NUM_FEED = 1
-DX, DY = [-1, 0, 1, 0], [0, 1, 0, -1]
-
-BLOCK_PIXELS = 30
-SCREEN_SIZE = (BOARD_WIDTH*BLOCK_PIXELS, BOARD_HEIGHT*BLOCK_PIXELS)
-
-
-class SnakeAction:
-    MOVE_FORWARD = 0
-    TURN_LEFT = 1
-    TURN_RIGHT = 2
-
 
 class SnakeState:
-    def __init__(self):
-        self.board = np.full((BOARD_HEIGHT, BOARD_WIDTH), EmptyBlock.get_code())
-        self.snake = deque(INITIAL_SNAKE)
-        self.tx, self.ty = INITIAL_TAIL
-        self.direction = INITIAL_SNAKE[-1]
+    DX, DY = [-1, 0, 1, 0], [0, 1, 0, -1]
 
-        self.board[self.tx, self.ty] = SnakeTailBlock.get_code(INITIAL_SNAKE[0])
-        x, y = INITIAL_TAIL
-        for i in range(len(INITIAL_SNAKE)-1):
-            x += DX[INITIAL_SNAKE[i]]
-            y += DY[INITIAL_SNAKE[i]]
-            self.board[x, y] = SnakeBodyBlock.get_code(INITIAL_SNAKE[i+1], INITIAL_SNAKE[i])
-        self.hx, self.hy = x + DX[self.direction], y + DY[self.direction]
-        self.board[self.hx, self.hy] = SnakeHeadBlock.get_code(self.direction)
+    def __init__(self, field_size, field, num_feed, initial_head_position, initial_tail_position, initial_snake):
+        self.field_height, self.field_width = field_size
+        self.field = field.copy()
+        self.hx, self.hy = initial_head_position
+        self.tx, self.ty = initial_tail_position
+        self.snake = deque(initial_snake)
+        self.direction = initial_snake[-1]
 
-        for x, y in INITIAL_OBSTACLE:
-            self.board[x, y] = ObstacleBlock.get_code()
-
-        for x, y in INITIAL_FEED:
-            self.board[x, y] = FeedBlock.get_code()
-        for _ in range(NUM_FEED-len(INITIAL_FEED)):
+        for _ in range(num_feed):
             self._generate_feed()
 
     def _generate_feed(self):
         empty_blocks = []
-        for i in range(BOARD_HEIGHT):
-            for j in range(BOARD_WIDTH):
-                if self.board[i][j] == EmptyBlock.get_code():
+        for i in range(self.field_height):
+            for j in range(self.field_width):
+                if self.field[i][j] == EmptyBlock.get_code():
                     empty_blocks.append((i, j))
 
         if len(empty_blocks) > 0:
             x, y = random.sample(empty_blocks, 1)[0]
-            self.board[x, y] = FeedBlock.get_code()
+            self.field[x, y] = FeedBlock.get_code()
 
     def get_length(self):
         return len(self.snake) + 1
 
     def move_forward(self):
-        hx = self.hx + DX[self.direction]
-        hy = self.hy + DY[self.direction]
-        if hx < 0 or hx >= BOARD_HEIGHT or hy < 0 or hy >= BOARD_WIDTH \
-                or ObstacleBlock.contains(self.board[hx][hy]) \
-                or SnakeBodyBlock.contains(self.board[hx][hy]):
+        hx = self.hx + SnakeState.DX[self.direction]
+        hy = self.hy + SnakeState.DY[self.direction]
+        if hx < 0 or hx >= self.field_height or hy < 0 or hy >= self.field_width \
+                or ObstacleBlock.contains(self.field[hx][hy]) \
+                or SnakeBodyBlock.contains(self.field[hx][hy]):
             return -1, True
 
-        is_feed = FeedBlock.contains(self.board[hx][hy])
+        is_feed = FeedBlock.contains(self.field[hx][hy])
 
         if not is_feed:
-            self.board[self.tx, self.ty] = EmptyBlock.get_code()
+            self.field[self.tx, self.ty] = EmptyBlock.get_code()
             td = self.snake.popleft()
-            self.tx += DX[td]
-            self.ty += DY[td]
-            self.board[self.tx, self.ty] = SnakeTailBlock.get_code(self.snake[0])
+            self.tx += SnakeState.DX[td]
+            self.ty += SnakeState.DY[td]
+            self.field[self.tx, self.ty] = SnakeTailBlock.get_code(self.snake[0])
 
         self.snake.append(self.direction)
-        self.board[self.hx, self.hy] = SnakeBodyBlock.get_code(self.snake[-1], self.snake[-2])
-        self.board[hx, hy] = SnakeHeadBlock.get_code(self.snake[-1])
+        self.field[self.hx, self.hy] = SnakeBodyBlock.get_code(self.snake[-1], self.snake[-2])
+        self.field[hx, hy] = SnakeHeadBlock.get_code(self.snake[-1])
         self.hx, self.hy = hx, hy
 
         if is_feed:
@@ -112,7 +74,13 @@ class SnakeState:
         return self.move_forward()
 
     def embedded(self):
-        return np.eye(NUM_CHANNELS)[self.board]
+        return np.eye(NUM_CHANNELS)[self.field]
+
+
+class SnakeAction:
+    MOVE_FORWARD = 0
+    TURN_LEFT = 1
+    TURN_RIGHT = 2
 
 
 class Snake:
@@ -122,15 +90,30 @@ class Snake:
         SnakeAction.TURN_RIGHT: 'turn_right'
     }
 
-    def __init__(self):
+    def __init__(self, level_loader, block_pixels=30):
+        self.level_loader = level_loader
+        self.block_pixels = block_pixels
+
+        self.field_height, self.field_width = self.level_loader.get_field_size()
+
         pygame.init()
-        self.screen = pygame.display.set_mode(SCREEN_SIZE)
+        self.screen = pygame.display.set_mode((
+            self.field_width * block_pixels,
+            self.field_height * block_pixels
+        ))
         self.clock = pygame.time.Clock()
 
         self.reset()
 
     def reset(self):
-        self.state = SnakeState()
+        self.state = SnakeState(
+            self.level_loader.get_field_size(),
+            self.level_loader.get_field(),
+            self.level_loader.get_num_feed(),
+            self.level_loader.get_initial_head_position(),
+            self.level_loader.get_initial_tail_position(),
+            self.level_loader.get_initial_snake()
+        )
         self.tot_reward = 0
         return self.state.embedded()
 
@@ -147,15 +130,15 @@ class Snake:
         pygame.event.pump()
         self.screen.fill((255, 255, 255))
 
-        for i in range(BOARD_HEIGHT):
-            for j in range(BOARD_WIDTH):
-                cp = get_color_points(self.state.board[i][j])
+        for i in range(self.field_height):
+            for j in range(self.field_width):
+                cp = get_color_points(self.state.field[i][j])
                 if cp is None:
                     continue
                 pygame.draw.polygon(
                     self.screen,
                     cp[0],
-                    (cp[1] + [j, i])*BLOCK_PIXELS
+                    (cp[1] + [j, i])*self.block_pixels
                 )
 
         pygame.display.flip()

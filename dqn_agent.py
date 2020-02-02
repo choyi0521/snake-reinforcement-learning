@@ -1,6 +1,6 @@
 from keras.layers import Dense, Dropout, Conv2D, Flatten
 from keras.models import Sequential
-from snake import BOARD_HEIGHT, BOARD_WIDTH, NUM_CHANNELS, NUM_ACTIONS
+from snake import NUM_CHANNELS, NUM_ACTIONS
 from collections import deque
 import random
 import numpy as np
@@ -8,17 +8,17 @@ import keras
 
 
 class DQNAgent(object):
-    def __init__(self, gamma, batch_size, min_replay_memory_size, replay_memory_size):
+    def __init__(self, field_size, gamma, batch_size, min_replay_memory_size, replay_memory_size):
         self.gamma = gamma
         self.batch_size = batch_size
         self.min_replay_memory_size = min_replay_memory_size
 
-        self.model = self._create_model()
+        self.model = self._create_model(field_size)
         self.replay_memory = deque(maxlen=replay_memory_size)
 
-    def _create_model(self):
+    def _create_model(self, field_size):
         model = Sequential([
-            Conv2D(32, (3, 3), input_shape=(BOARD_HEIGHT, BOARD_WIDTH, NUM_CHANNELS), activation='relu'),
+            Conv2D(32, (3, 3), input_shape=(field_size[0], field_size[1], NUM_CHANNELS), activation='relu'),
             Dropout(0.1),
             Conv2D(32, (3, 3), activation='relu'),
             Dropout(0.1),

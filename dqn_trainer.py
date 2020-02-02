@@ -7,25 +7,27 @@ from snake import Snake, NUM_ACTIONS
 import pickle
 import os
 from summary import Summary
+from level_loader import LevelLoader
 
 
 class DQNTrainer(object):
     def __init__(self,
-                 n_episodes=50000,
+                 level_filepath,
+                 n_episodes=30000,
                  initial_epsilon=1.,
                  min_epsilon=0.01,
-                 exploration_ratio=0.5,
+                 exploration_ratio=0.8,
                  max_steps=2000,
-                 render_freq=200,
+                 render_freq=500,
                  enable_render=True,
                  render_fps=10,
                  save_dir='checkpoints',
                  enable_save=True,
-                 save_freq=1000,
+                 save_freq=500,
                  gamma=0.99,
                  batch_size=64,
                  min_replay_memory_size=1000,
-                 replay_memory_size=10000,
+                 replay_memory_size=100000,
                  seed=42
                  ):
         self._set_random_seed(seed)
@@ -45,13 +47,16 @@ class DQNTrainer(object):
         if enable_save and not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
+        level_loader = LevelLoader(level_filepath)
+
         self.agent = DQNAgent(
+            level_loader.get_field_size(),
             gamma=gamma,
             batch_size=batch_size,
             min_replay_memory_size=min_replay_memory_size,
             replay_memory_size=replay_memory_size
         )
-        self.env = Snake()
+        self.env = Snake(level_loader)
         self.summary = Summary()
         self.current_episode = 0
         self.max_average_length = 0
@@ -116,6 +121,7 @@ class DQNTrainer(object):
 
     def preview(self, disable_exploration=False):
         current_state = self.env.reset()
+        self.env.render(fps=self.render_fps)
 
         done = False
         steps = 0
@@ -132,7 +138,7 @@ class DQNTrainer(object):
             steps += 1
 
     def save(self, name):
-        self.agent.save(self.save_dir+'/dqn_agent_{}.h5'.format(name))
+        self.agent.save(self.save_dir+'/model_{}.h5'.format(name))
         dic = {
             'current_episode': self.current_episode,
             'epsilon': self.epsilon,
@@ -144,7 +150,7 @@ class DQNTrainer(object):
             pickle.dump(dic, fout)
 
     def load(self, name):
-        self.agent.load(self.save_dir+'/dqn_agent_{}.h5'.format(name))
+        self.agent.load(self.save_dir+'/model_{}.h5'.format(name))
         with open(self.save_dir+'/training_info_{}.pkl'.format(name), 'rb') as fin:
             dic = pickle.load(fin)
         self.current_episode = dic['current_episode']
@@ -155,7 +161,8 @@ class DQNTrainer(object):
 
 
 if __name__ == '__main__':
-    trainer = DQNTrainer()
-    trainer.load('26000')
-    #trainer.train()
-    trainer.preview(disable_exploration=True)
+    trainer = DQNTrainer('levels/9x9_empty.yml')
+    #trainer = DQNTrainer('levels/9x13_double_feed.yml')
+    #trainer.load('20500')
+    trainer.train()
+    #trainer.preview(disable_exploration=True)

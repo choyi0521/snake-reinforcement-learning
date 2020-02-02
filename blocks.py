@@ -40,7 +40,7 @@ class ObstacleBlock(Block):
 
     @staticmethod
     def get_color():
-        return 0, 0, 0
+        return 127, 127, 127
 
     @staticmethod
     def get_points():

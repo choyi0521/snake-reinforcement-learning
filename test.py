@@ -1,5 +1,9 @@
-import numpy as np
+from level_loader import LevelLoader
 
-for i in range(6):
-    x = int(3.7 - np.sqrt(49 - 8 * i)/2)
-    print(x)
+ll = LevelLoader('levels/9x9_empty.yml')
+print(ll.get_field_size())
+print(ll.get_field())
+print(ll.get_initial_head_position())
+print(ll.get_initial_snake())
+print(ll.get_initial_tail_position())
+print(ll.get_num_feed())
