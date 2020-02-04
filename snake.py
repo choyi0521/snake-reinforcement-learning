@@ -143,3 +143,6 @@ class Snake:
 
         pygame.display.flip()
         self.clock.tick(fps)
+
+    def save_image(self, save_path):
+        pygame.image.save(self.screen, save_path)

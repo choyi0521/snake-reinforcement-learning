@@ -27,6 +27,7 @@ class DQNAgent(object):
             Dropout(0.1),
             Dense(NUM_ACTIONS)
         ])
+        model.summary()
         model.compile(optimizer='rmsprop', loss='mse')
         return model
 

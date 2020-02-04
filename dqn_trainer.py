@@ -13,14 +13,14 @@ from level_loader import LevelLoader
 class DQNTrainer(object):
     def __init__(self,
                  level_filepath,
-                 n_episodes=30000,
+                 episodes=40000,
                  initial_epsilon=1.,
                  min_epsilon=0.01,
                  exploration_ratio=0.8,
-                 max_steps=2000,
+                 max_steps=10000,
                  render_freq=500,
                  enable_render=True,
-                 render_fps=10,
+                 render_fps=20,
                  save_dir='checkpoints',
                  enable_save=True,
                  save_freq=500,
@@ -30,9 +30,9 @@ class DQNTrainer(object):
                  replay_memory_size=100000,
                  seed=42
                  ):
-        self._set_random_seed(seed)
+        self.set_random_seed(seed)
 
-        self.n_episodes = n_episodes
+        self.episodes = episodes
         self.max_steps = max_steps
         self.epsilon = initial_epsilon
         self.min_epsilon = min_epsilon
@@ -61,17 +61,17 @@ class DQNTrainer(object):
         self.current_episode = 0
         self.max_average_length = 0
 
-        self.epsilon_decay = (initial_epsilon-min_epsilon)/(exploration_ratio*n_episodes)
+        self.epsilon_decay = (initial_epsilon-min_epsilon)/(exploration_ratio*episodes)
 
-    def _set_random_seed(self, seed):
+    def set_random_seed(self, seed):
         random.seed(seed)
         np.random.seed(seed)
         os.environ['PYTHONHASHSEED'] = str(seed)
         tf.set_random_seed(seed)
 
     def train(self):
-        pbar = tqdm(initial=self.current_episode, total=self.n_episodes, unit='episodes')
-        while self.current_episode < self.n_episodes:
+        pbar = tqdm(initial=self.current_episode, total=self.episodes, unit='episodes')
+        while self.current_episode < self.episodes:
             current_state = self.env.reset()
 
             done = False
@@ -117,11 +117,17 @@ class DQNTrainer(object):
 
             # preview
             if self.enable_render and self.current_episode % self.render_freq == 0:
-                self.preview()
+                self.preview(self.render_fps)
 
-    def preview(self, disable_exploration=False):
+    def preview(self, render_fps, disable_exploration=False, save_dir=None):
+        if save_dir is not None and not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
         current_state = self.env.reset()
-        self.env.render(fps=self.render_fps)
+
+        self.env.render(fps=render_fps)
+        if save_dir is not None:
+            self.env.save_image(save_path=save_dir+'/0.png')
 
         done = False
         steps = 0
@@ -132,10 +138,17 @@ class DQNTrainer(object):
                 action = np.random.randint(NUM_ACTIONS)
 
             next_state, reward, done = self.env.step(action)
-            self.env.render(fps=self.render_fps)
-
             current_state = next_state
             steps += 1
+
+            self.env.render(fps=render_fps)
+            if save_dir is not None:
+                self.env.save_image(save_path=save_dir+'/{}.png'.format(steps))
+
+        return self.env.state.get_length()
+
+    def quit(self):
+        self.env.quit()
 
     def save(self, name):
         self.agent.save(self.save_dir+'/model_{}.h5'.format(name))
@@ -158,11 +171,3 @@ class DQNTrainer(object):
         self.agent.replay_memory = dic['replay_memory']
         self.summary = dic['summary']
         self.max_average_length = dic['max_average_length']
-
-
-if __name__ == '__main__':
-    trainer = DQNTrainer('levels/9x9_empty.yml')
-    #trainer = DQNTrainer('levels/9x13_double_feed.yml')
-    #trainer.load('20500')
-    trainer.train()
-    #trainer.preview(disable_exploration=True)
