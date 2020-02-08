@@ -29,6 +29,5 @@ See `python play.py -h` to check what options available.
 </center>
 <center>
     <img src="/examples/double_feed.gif" width="300" border=1/>
-    <br/>
     <em>9x13 double feed</em>
 </center>
