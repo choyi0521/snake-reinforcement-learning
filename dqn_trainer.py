@@ -10,14 +10,14 @@ from summary import Summary
 from level_loader import LevelLoader
 
 
-class DQNTrainer(object):
+class DQNTrainer:
     def __init__(self,
                  level_filepath,
-                 episodes=40000,
+                 episodes=30000,
                  initial_epsilon=1.,
-                 min_epsilon=0.01,
-                 exploration_ratio=0.8,
-                 max_steps=10000,
+                 min_epsilon=0.1,
+                 exploration_ratio=0.5,
+                 max_steps=2000,
                  render_freq=500,
                  enable_render=True,
                  render_fps=20,
@@ -28,6 +28,7 @@ class DQNTrainer(object):
                  batch_size=64,
                  min_replay_memory_size=1000,
                  replay_memory_size=100000,
+                 target_update_freq=5,
                  seed=42
                  ):
         self.set_random_seed(seed)
@@ -54,7 +55,8 @@ class DQNTrainer(object):
             gamma=gamma,
             batch_size=batch_size,
             min_replay_memory_size=min_replay_memory_size,
-            replay_memory_size=replay_memory_size
+            replay_memory_size=replay_memory_size,
+            target_update_freq=target_update_freq
         )
         self.env = Snake(level_loader)
         self.summary = Summary()
@@ -90,7 +92,9 @@ class DQNTrainer(object):
                 current_state = next_state
                 steps += 1
 
-            self.summary.add('length', self.env.state.get_length())
+            self.agent.increase_target_update_counter()
+
+            self.summary.add('length', self.env.get_length())
             self.summary.add('reward', self.env.tot_reward)
             self.summary.add('steps', steps)
 
@@ -145,29 +149,41 @@ class DQNTrainer(object):
             if save_dir is not None:
                 self.env.save_image(save_path=save_dir+'/{}.png'.format(steps))
 
-        return self.env.state.get_length()
+        return self.env.get_length()
 
     def quit(self):
         self.env.quit()
 
-    def save(self, name):
-        self.agent.save(self.save_dir+'/model_{}.h5'.format(name))
+    def save(self, suffix):
+        self.agent.save(
+            self.save_dir+'/model_{}.h5'.format(suffix),
+            self.save_dir+'/target_model_{}.h5'.format(suffix)
+        )
+
         dic = {
+            'replay_memory': self.agent.replay_memory,
+            'target_update_counter': self.agent.target_update_counter,
             'current_episode': self.current_episode,
             'epsilon': self.epsilon,
-            'replay_memory': self.agent.replay_memory,
             'summary': self.summary,
             'max_average_length': self.max_average_length
         }
-        with open(self.save_dir+'/training_info_{}.pkl'.format(name), 'wb') as fout:
+
+        with open(self.save_dir+'/training_info_{}.pkl'.format(suffix), 'wb') as fout:
             pickle.dump(dic, fout)
 
-    def load(self, name):
-        self.agent.load(self.save_dir+'/model_{}.h5'.format(name))
-        with open(self.save_dir+'/training_info_{}.pkl'.format(name), 'rb') as fin:
+    def load(self, suffix):
+        self.agent.load(
+            self.save_dir+'/model_{}.h5'.format(suffix),
+            self.save_dir+'/target_model_{}.h5'.format(suffix)
+        )
+
+        with open(self.save_dir+'/training_info_{}.pkl'.format(suffix), 'rb') as fin:
             dic = pickle.load(fin)
+
+        self.agent.replay_memory = dic['replay_memory']
+        self.agent.target_update_counter = dic['target_update_counter']
         self.current_episode = dic['current_episode']
         self.epsilon = dic['epsilon']
-        self.agent.replay_memory = dic['replay_memory']
         self.summary = dic['summary']
         self.max_average_length = dic['max_average_length']

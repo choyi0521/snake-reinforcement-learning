@@ -7,18 +7,25 @@ import numpy as np
 import keras
 
 
-class DQNAgent(object):
-    def __init__(self, field_size, gamma, batch_size, min_replay_memory_size, replay_memory_size):
+class DQNAgent:
+    def __init__(self, field_size, gamma, batch_size, min_replay_memory_size, replay_memory_size, target_update_freq):
         self.gamma = gamma
+        self.field_height, self.field_width = field_size
         self.batch_size = batch_size
         self.min_replay_memory_size = min_replay_memory_size
+        self.target_update_freq = target_update_freq
 
-        self.model = self._create_model(field_size)
+        self.model = self._create_model()
+        self.target_model = self._create_model()
+        self.target_model.set_weights(self.model.get_weights())
+        self.model.summary()
+
         self.replay_memory = deque(maxlen=replay_memory_size)
+        self.target_update_counter = 0
 
-    def _create_model(self, field_size):
+    def _create_model(self):
         model = Sequential([
-            Conv2D(32, (3, 3), input_shape=(field_size[0], field_size[1], NUM_CHANNELS), activation='relu'),
+            Conv2D(32, (3, 3), input_shape=(self.field_height, self.field_width, NUM_CHANNELS), activation='relu'),
             Dropout(0.1),
             Conv2D(32, (3, 3), activation='relu'),
             Dropout(0.1),
@@ -27,7 +34,6 @@ class DQNAgent(object):
             Dropout(0.1),
             Dense(NUM_ACTIONS)
         ])
-        model.summary()
         model.compile(optimizer='rmsprop', loss='mse')
         return model
 
@@ -45,9 +51,9 @@ class DQNAgent(object):
         # get current q values and next q values
         samples = random.sample(self.replay_memory, self.batch_size)
         current_input = np.stack([sample[0] for sample in samples])
-        current_q_values = self.get_q_values(current_input)
+        current_q_values = self.model.predict(current_input)
         next_input = np.stack([sample[3] for sample in samples])
-        next_q_values = self.get_q_values(next_input)
+        next_q_values = self.target_model.predict(next_input)
 
         # update q values
         for i, (current_state, action, reward, _, done) in enumerate(samples):
@@ -62,8 +68,16 @@ class DQNAgent(object):
         loss = hist.history['loss'][0]
         return loss
 
-    def save(self, filename):
-        self.model.save(filename)
+    def increase_target_update_counter(self):
+        self.target_update_counter += 1
+        if self.target_update_counter >= self.target_update_freq:
+            self.target_model.set_weights(self.model.get_weights())
+            self.target_update_counter = 0
 
-    def load(self, filename):
-        self.model = keras.models.load_model(filename)
+    def save(self, model_filepath, target_model_filepath):
+        self.model.save(model_filepath)
+        self.target_model.save(target_model_filepath)
+
+    def load(self, model_filepath, target_model_filepath):
+        self.model = keras.models.load_model(model_filepath)
+        self.target_model = keras.models.load_model(target_model_filepath)

@@ -9,7 +9,7 @@ NUM_CHANNELS = 17
 NUM_ACTIONS = 3
 
 
-class SnakeState:
+class SnakeStateTransition:
     DX, DY = [-1, 0, 1, 0], [0, 1, 0, -1]
 
     def __init__(self, field_size, field, num_feed, initial_head_position, initial_tail_position, initial_snake):
@@ -34,12 +34,15 @@ class SnakeState:
             x, y = random.sample(empty_blocks, 1)[0]
             self.field[x, y] = FeedBlock.get_code()
 
+    def get_state(self):
+        return np.eye(NUM_CHANNELS)[self.field]
+
     def get_length(self):
         return len(self.snake) + 1
 
     def move_forward(self):
-        hx = self.hx + SnakeState.DX[self.direction]
-        hy = self.hy + SnakeState.DY[self.direction]
+        hx = self.hx + SnakeStateTransition.DX[self.direction]
+        hy = self.hy + SnakeStateTransition.DY[self.direction]
         if hx < 0 or hx >= self.field_height or hy < 0 or hy >= self.field_width \
                 or ObstacleBlock.contains(self.field[hx][hy]) \
                 or SnakeBodyBlock.contains(self.field[hx][hy]):
@@ -50,8 +53,8 @@ class SnakeState:
         if not is_feed:
             self.field[self.tx, self.ty] = EmptyBlock.get_code()
             td = self.snake.popleft()
-            self.tx += SnakeState.DX[td]
-            self.ty += SnakeState.DY[td]
+            self.tx += SnakeStateTransition.DX[td]
+            self.ty += SnakeStateTransition.DY[td]
             self.field[self.tx, self.ty] = SnakeTailBlock.get_code(self.snake[0])
 
         self.snake.append(self.direction)
@@ -72,9 +75,6 @@ class SnakeState:
     def turn_right(self):
         self.direction = (self.direction + 1) % 4
         return self.move_forward()
-
-    def embedded(self):
-        return np.eye(NUM_CHANNELS)[self.field]
 
 
 class SnakeAction:
@@ -106,7 +106,7 @@ class Snake:
         self.reset()
 
     def reset(self):
-        self.state = SnakeState(
+        self.state_transition = SnakeStateTransition(
             self.level_loader.get_field_size(),
             self.level_loader.get_field(),
             self.level_loader.get_num_feed(),
@@ -115,24 +115,27 @@ class Snake:
             self.level_loader.get_initial_snake()
         )
         self.tot_reward = 0
-        return self.state.embedded()
+        return self.state_transition.get_state()
 
     def step(self, action):
-        reward, done = getattr(self.state, Snake.ACTIONS[action])()
+        reward, done = getattr(self.state_transition, Snake.ACTIONS[action])()
         self.tot_reward += reward
-        return self.state.embedded(), reward, done
+        return self.state_transition.get_state(), reward, done
+
+    def get_length(self):
+        return self.state_transition.get_length()
 
     def quit(self):
         pygame.quit()
 
     def render(self, fps):
-        pygame.display.set_caption('length: {}'.format(self.state.get_length()))
+        pygame.display.set_caption('length: {}'.format(self.state_transition.get_length()))
         pygame.event.pump()
         self.screen.fill((255, 255, 255))
 
         for i in range(self.field_height):
             for j in range(self.field_width):
-                cp = get_color_points(self.state.field[i][j])
+                cp = get_color_points(self.state_transition.field[i][j])
                 if cp is None:
                     continue
                 pygame.draw.polygon(
