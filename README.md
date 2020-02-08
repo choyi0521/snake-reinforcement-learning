@@ -18,16 +18,14 @@ See `python play.py -h` to check what options available.
 
 ## some results
 <center>
-    <img src="/examples/empty.gif" width="250" border=1/>
-    <br/>
+    <img src="/examples/empty.gif" width="250"/>
     <em>9x9 empty</em>
 </center>
 <center>
-    <img src="/examples/obstacles.gif" width="250" border=1/>
-    <br/>
+    <img src="/examples/obstacles.gif" width="250"/>
     <em>9x9 obstacles</em>
 </center>
 <center>
-    <img src="/examples/double_feed.gif" width="300" border=1/>
+    <img src="/examples/double_feed.gif" width="300"/>
     <em>9x13 double feed</em>
 </center>
