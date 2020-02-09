@@ -7,14 +7,14 @@ Snake game AI using deep Q-networks
 ```
 python train.py --level_filepath levels/9x9_empty.yml
 ```
-See `python train.py -h` to check what options available.
+Refer to `python train.py -h` to see what arguments can be changed.
 
 ## playing
 
 ```
 python play.py --level_filepath levels/9x9_empty.yml --checkpoint best
 ```
-See `python play.py -h` to check what options available.
+Refer to `python play.py -h` to see what arguments can be changed.
 
 ## some results
 
