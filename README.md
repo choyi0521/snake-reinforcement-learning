@@ -2,7 +2,7 @@
 
 Snake game AI using deep Q-networks
 
-## Praining
+## Training
 
 Example:
 ```
