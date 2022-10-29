@@ -2,6 +2,8 @@
 
 Snake game AI using deep Q-networks
 
+A detailed description is provided in the [samsung software membership blog (Korean)](https://infossm.github.io/blog/2020/02/08/snake-dqn/).
+
 ## Training
 
 Example:
